@@ -1,18 +1,15 @@
 """Handlers de GET y POST en `/v1/estadisticas/ventas` (CLAUDE.md §7, §9).
 
 Orquestan: recibir consulta -> `filters.aplicar_filtros` -> `stats.calcular_estadisticas`
--> responder.
-
-Nota: el formato JSON exacto de error (400/500 con `errorCode`/`errorLabel`,
-CLAUDE.md §7) lo arma el módulo `errors` (paso siguiente del roadmap, aún no
-implementado). Mientras tanto, este módulo levanta `HTTPException` estándar
-de FastAPI como placeholder: 400 para filtros inválidos (`FiltroInvalidoError`)
-y 500 para errores de cálculo (`SinDatosError`, ej. conjunto vacío).
+-> responder. Las excepciones (`filters.FiltroInvalidoError`,
+`stats.SinDatosError`) se dejan propagar sin capturarlas acá: el módulo
+`errors` las traduce, en un único lugar, al formato JSON exacto de 400/500
+del enunciado.
 """
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app import data_store, filters, stats
 from app.logging_config import logger
@@ -57,18 +54,8 @@ def _query_params_a_consultas(
 
 def _resolver_estadisticas(consultas: List[ConsultaFiltro]) -> EstadisticasVentasResponse:
     df = data_store.get_ventas_df()
-
-    try:
-        subconjunto = filters.aplicar_filtros(df, consultas)
-    except filters.FiltroInvalidoError as exc:
-        logger.warning("filtro inválido ({} filtro(s)): {}", len(consultas), exc)
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    try:
-        resultado = stats.calcular_estadisticas(subconjunto[COLUMNA_METRICA])
-    except stats.SinDatosError as exc:
-        logger.error("error de cálculo interno ({} filtro(s)): {}", len(consultas), exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    subconjunto = filters.aplicar_filtros(df, consultas)
+    resultado = stats.calcular_estadisticas(subconjunto[COLUMNA_METRICA])
 
     logger.success(
         "consulta resuelta: {} filtro(s), {} fila(s) coincidentes",

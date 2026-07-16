@@ -1,0 +1,194 @@
+{
+  "_descripcion": "Casos de prueba para GET/POST /v1/estadisticas/ventas, con la respuesta exacta esperada al correr contra el CSV real (data/ventas_completas.csv, 3.242.878 filas). Consumido por scripts/probar_api.py para validar automáticamente una instancia en ejecución de la API (uvicorn app.main:app).",
+  "casos": [
+    {
+      "nombre": "sin_filtros",
+      "descripcion": "GET sin query params: estadísticas sobre el total de ventas.",
+      "metodo": "GET",
+      "query_params": {},
+      "status_esperado": 200,
+      "respuesta_esperada": {
+        "suma": 33012425828.0,
+        "conteo": 3242878,
+        "promedio": 10179.977732125599,
+        "minimo": 15.0,
+        "maximo": 226476.0,
+        "mediana": 7662.0,
+        "desviacion_estandar": 14453.237422072467
+      }
+    },
+    {
+      "nombre": "genero_femenino",
+      "descripcion": "GET filtrando por GENERO=Femenino.",
+      "metodo": "GET",
+      "query_params": { "genero": "Femenino" },
+      "status_esperado": 200,
+      "respuesta_esperada": {
+        "suma": 21715774303.0,
+        "conteo": 2186993,
+        "promedio": 9929.512487237042,
+        "minimo": 15.0,
+        "maximo": 226475.0,
+        "mediana": 7495.0,
+        "desviacion_estandar": 14481.947127756373
+      }
+    },
+    {
+      "nombre": "canal_pos_genero_masculino",
+      "descripcion": "GET combinando dos filtros: CANAL=POS y GENERO=Masculino.",
+      "metodo": "GET",
+      "query_params": { "canal": "POS", "genero": "Masculino" },
+      "status_esperado": 200,
+      "respuesta_esperada": {
+        "suma": 11002764448.0,
+        "conteo": 1033169,
+        "promedio": 10649.530181412722,
+        "minimo": 16.0,
+        "maximo": 226476.0,
+        "mediana": 7872.0,
+        "desviacion_estandar": 14317.090578047004
+      }
+    },
+    {
+      "nombre": "local_371",
+      "descripcion": "GET filtrando por LOCAL=371.",
+      "metodo": "GET",
+      "query_params": { "local": 371 },
+      "status_esperado": 200,
+      "respuesta_esperada": {
+        "suma": 42882558.0,
+        "conteo": 4018,
+        "promedio": 10672.612742658039,
+        "minimo": 258.0,
+        "maximo": 215690.0,
+        "mediana": 7745.0,
+        "desviacion_estandar": 15331.855754601182
+      }
+    },
+    {
+      "nombre": "edad_34",
+      "descripcion": "GET filtrando por EDAD=34.",
+      "metodo": "GET",
+      "query_params": { "edad": 34 },
+      "status_esperado": 200,
+      "respuesta_esperada": {
+        "suma": 644093391.0,
+        "conteo": 69314,
+        "promedio": 9292.399673947542,
+        "minimo": 27.0,
+        "maximo": 226475.0,
+        "mediana": 7208.0,
+        "desviacion_estandar": 14682.729509771882
+      }
+    },
+    {
+      "nombre": "rango_fechas_mayo_2024",
+      "descripcion": "GET filtrando por rango de fechas (mayo de 2024).",
+      "metodo": "GET",
+      "query_params": { "fecha_desde": "2024-05-01", "fecha_hasta": "2024-05-31" },
+      "status_esperado": 200,
+      "respuesta_esperada": {
+        "suma": 1786662579.0,
+        "conteo": 282588,
+        "promedio": 6322.499819525246,
+        "minimo": 19.0,
+        "maximo": 126190.0,
+        "mediana": 4797.0,
+        "desviacion_estandar": 5815.656866899222
+      }
+    },
+    {
+      "nombre": "codigo_producto_79",
+      "descripcion": "GET filtrando por CODIGO_PRODUCTO (SKU) = 79.",
+      "metodo": "GET",
+      "query_params": { "codigo_producto": 79 },
+      "status_esperado": 200,
+      "respuesta_esperada": {
+        "suma": 695745351.0,
+        "conteo": 89079,
+        "promedio": 7810.430640218233,
+        "minimo": 2195.0,
+        "maximo": 19210.0,
+        "mediana": 7684.0,
+        "desviacion_estandar": 1839.0729450518504
+      }
+    },
+    {
+      "nombre": "id_persona_ejemplo",
+      "descripcion": "GET filtrando por ID_PERSONA (UUID de un cliente real con varias compras).",
+      "metodo": "GET",
+      "query_params": { "id_persona": "f62c242f-e34d-3be2-902d-d58c79e7a97f" },
+      "status_esperado": 200,
+      "respuesta_esperada": {
+        "suma": 1215081.0,
+        "conteo": 110,
+        "promedio": 11046.190909090908,
+        "minimo": 1136.0,
+        "maximo": 97995.0,
+        "mediana": 7696.0,
+        "desviacion_estandar": 13946.76236948298
+      }
+    },
+    {
+      "nombre": "post_consultas_combinadas",
+      "descripcion": "POST con body JSON: mismo filtro que canal_pos_genero_masculino, vía POST.",
+      "metodo": "POST",
+      "body": {
+        "consultas": [
+          { "consulta": "CANAL", "valor": "POS" },
+          { "consulta": "GENERO", "valor": "Masculino" }
+        ]
+      },
+      "status_esperado": 200,
+      "respuesta_esperada": {
+        "suma": 11002764448.0,
+        "conteo": 1033169,
+        "promedio": 10649.530181412722,
+        "minimo": 16.0,
+        "maximo": 226476.0,
+        "mediana": 7872.0,
+        "desviacion_estandar": 14317.090578047004
+      }
+    },
+    {
+      "nombre": "post_sin_consultas",
+      "descripcion": "POST con 'consultas' vacía: equivalente al total sin filtrar.",
+      "metodo": "POST",
+      "body": { "consultas": [] },
+      "status_esperado": 200,
+      "respuesta_esperada": {
+        "suma": 33012425828.0,
+        "conteo": 3242878,
+        "promedio": 10179.977732125599,
+        "minimo": 15.0,
+        "maximo": 226476.0,
+        "mediana": 7662.0,
+        "desviacion_estandar": 14453.237422072467
+      }
+    },
+    {
+      "nombre": "error_valor_invalido",
+      "descripcion": "GET con CANAL fuera de los valores permitidos -> 400, errorCode VF.",
+      "metodo": "GET",
+      "query_params": { "canal": "FAX" },
+      "status_esperado": 400,
+      "error_code_esperado": "VF"
+    },
+    {
+      "nombre": "error_clave_no_reconocida",
+      "descripcion": "POST con una clave de filtro que no existe -> 400, errorCode VF.",
+      "metodo": "POST",
+      "body": { "consultas": [{ "consulta": "NO_EXISTE", "valor": "x" }] },
+      "status_esperado": 400,
+      "error_code_esperado": "VF"
+    },
+    {
+      "nombre": "error_sin_coincidencias",
+      "descripcion": "GET con un LOCAL que no existe en los datos -> 500, errorCode IE (no hay filas para calcular las métricas).",
+      "metodo": "GET",
+      "query_params": { "local": 999999999 },
+      "status_esperado": 500,
+      "error_code_esperado": "IE"
+    }
+  ]
+}
