@@ -1,11 +1,4 @@
-"""Contenedor en memoria del DataFrame de ventas ya cargado y limpio.
-
-Singleton a nivel de módulo (CLAUDE.md §9): `data_loader` lo llena una única
-vez durante el arranque de la app (`lifespan` de FastAPI, ver `app/main.py`).
-El resto de los módulos (`filters`, `stats`, `endpoints`) solo lo leen a
-través de `get_ventas_df`, sin depender de `app.state` ni importar `main`
-(evita import circular con los routers).
-"""
+# Singleton en memoria del DataFrame de ventas: data_loader lo llena una vez, el resto lo lee.
 
 from typing import Optional
 
@@ -14,19 +7,14 @@ import pandas as pd
 _ventas_df: Optional[pd.DataFrame] = None
 
 
+# Guarda el DataFrame cargado (se llama una sola vez, en el startup de la app).
 def set_ventas_df(df: pd.DataFrame) -> None:
-    """Establece el DataFrame cargado. Se llama una sola vez, en el startup."""
     global _ventas_df
     _ventas_df = df
 
 
+# Devuelve el DataFrame ya cargado; lanza RuntimeError si aún no se cargó.
 def get_ventas_df() -> pd.DataFrame:
-    """Devuelve el DataFrame de ventas ya cargado.
-
-    Lanza ``RuntimeError`` si se llama antes de que `data_loader` haya
-    corrido (por ejemplo, un endpoint invocado fuera del ciclo de vida
-    normal de la app).
-    """
     if _ventas_df is None:
         raise RuntimeError(
             "El DataFrame de ventas aún no ha sido cargado "
@@ -35,5 +23,6 @@ def get_ventas_df() -> pd.DataFrame:
     return _ventas_df
 
 
+# True si el DataFrame ya fue cargado.
 def is_loaded() -> bool:
     return _ventas_df is not None

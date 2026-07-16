@@ -1,29 +1,4 @@
-"""Carga paralela del CSV de ventas (Cruz Morada).
-
-Paralelismo *propio* (no delegado a un motor externo), implementado en la fase
-de carga tal como se acordó en CLAUDE.md (secciones 5 y 8):
-
-1. El archivo se divide en *chunks* por **offsets de bytes**, alineados a fin
-   de línea para no partir un registro por la mitad.
-2. Cada chunk se reparte a un proceso *worker* vía ``ProcessPoolExecutor``.
-   El worker abre el archivo, lee SOLO su rango de bytes, lo parsea con pandas
-   y lo limpia/tipa. Así el I/O y el parseo ocurren en paralelo, no solo la
-   limpieza.
-3. El proceso principal concatena los DataFrames resultantes en una única
-   estructura en memoria, que luego consultarán los endpoints.
-
-Formato real del CSV (verificado sobre ``data/ventas_completas.csv``):
-- Separador ``;`` (no ``,``).
-- Campos entre comillas dobles.
-- Cabeceras con espacios: ``PORCENTAJE DESCUENTO``, ``MONTO APLICADO``,
-  ``CODIGO CLIENTE``, ``RUN CLIENTE``, ``FECHA NACIMIENTO``.
-- ``GENERO`` numérico (1/2).
-
-Supuesto de la partición por bytes: ningún campo contiene saltos de línea
-embebidos dentro de las comillas. Es cierto para este dataset (fechas, montos,
-nombres, UUIDs y RUTs), y es la condición estándar para poder trocear un CSV
-por offsets de forma segura.
-"""
+# Carga paralela del CSV de ventas: chunking por offsets de bytes + ProcessPoolExecutor.
 
 from __future__ import annotations
 
@@ -34,10 +9,6 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-
-# --------------------------------------------------------------------------- #
-# Esquema
-# --------------------------------------------------------------------------- #
 
 # Nombres tal como vienen en el archivo (con espacios).
 RAW_COLUMNS: List[str] = [
@@ -82,8 +53,7 @@ _READ_DTYPES = {
 _FMT_FECHA = "%Y-%m-%dT%H:%M:%S"
 _FMT_NACIMIENTO = "%Y-%m-%d"
 
-# Etiquetas textuales de GENERO (enunciado). Cualquier valor no mapeado cae en
-# "No especificado".
+# Etiquetas textuales de GENERO. Cualquier valor no mapeado cae en "No especificado".
 _GENERO_LABELS = {1: "Masculino", 2: "Femenino", 3: "Otro"}
 _GENERO_DEFAULT = "No especificado"
 
@@ -94,18 +64,8 @@ _SEP = ";"
 _QUOTECHAR = '"'
 
 
-# --------------------------------------------------------------------------- #
-# Limpieza / tipado de un chunk
-# --------------------------------------------------------------------------- #
-
+# Calcula EDAD (años cumplidos) entre FECHA_NACIMIENTO y FECHA de la venta; Int16 nullable.
 def _derive_edad(fecha: pd.Series, nacimiento: pd.Series) -> pd.Series:
-    """EDAD del cliente al momento de la venta (determinista fila a fila).
-
-    Se calcula como los años cumplidos entre ``FECHA_NACIMIENTO`` y ``FECHA``
-    de la operación. Es reproducible (no depende de "hoy") y no exige elegir
-    una fecha de referencia arbitraria. Devuelve ``Int16`` nullable para tolerar
-    fechas inválidas.
-    """
     edad = fecha.dt.year - nacimiento.dt.year
     ya_cumplio = (fecha.dt.month > nacimiento.dt.month) | (
         (fecha.dt.month == nacimiento.dt.month) & (fecha.dt.day >= nacimiento.dt.day)
@@ -115,12 +75,8 @@ def _derive_edad(fecha: pd.Series, nacimiento: pd.Series) -> pd.Series:
     return edad.astype("Int16")
 
 
+# Limpia y tipa un chunk crudo (columnas RAW_COLUMNS); usada por workers y carga secuencial.
 def clean_chunk(df_raw: pd.DataFrame) -> pd.DataFrame:
-    """Limpia y tipa un chunk crudo (columnas ``RAW_COLUMNS``).
-
-    Función pura y testeable: la usan tanto los workers como la carga
-    secuencial, así que ambas rutas producen exactamente el mismo resultado.
-    """
     df = df_raw
 
     # Fechas con formato explícito (mucho más rápido que la inferencia).
@@ -143,17 +99,8 @@ def clean_chunk(df_raw: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# --------------------------------------------------------------------------- #
-# Partición por offsets de bytes
-# --------------------------------------------------------------------------- #
-
+# Divide el archivo en n_chunks rangos (start, end) de bytes, alineados a fin de línea.
 def _compute_chunk_bounds(path: str, n_chunks: int) -> Tuple[bytes, List[Tuple[int, int]]]:
-    """Divide el archivo en ``n_chunks`` rangos ``(start, end)`` de bytes.
-
-    Cada frontera se ajusta al inicio de la siguiente línea completa, de modo
-    que ningún rango parte un registro. La cabecera queda fuera de todos los
-    rangos. Devuelve ``(header_bytes, [(start, end), ...])``.
-    """
     file_size = os.path.getsize(path)
     with open(path, "rb") as f:
         header = f.readline()
@@ -182,8 +129,8 @@ def _compute_chunk_bounds(path: str, n_chunks: int) -> Tuple[bytes, List[Tuple[i
     return header, bounds
 
 
+# Lee y parsea (sin limpiar) el rango de bytes [start, end).
 def _read_raw_range(path: str, start: int, end: int) -> pd.DataFrame:
-    """Lee y parsea (sin limpiar) el rango de bytes ``[start, end)``."""
     with open(path, "rb") as f:
         f.seek(start)
         raw = f.read(end - start)
@@ -199,41 +146,27 @@ def _read_raw_range(path: str, start: int, end: int) -> pd.DataFrame:
     )
 
 
+# Worker: lee su rango de bytes, lo parsea y lo limpia.
 def _process_range(task: Tuple[str, int, int]) -> pd.DataFrame:
-    """Worker: lee su rango de bytes, lo parsea y lo limpia."""
     path, start, end = task
     df_raw = _read_raw_range(path, start, end)
     return clean_chunk(df_raw)
 
 
+# Convierte columnas de baja cardinalidad a category y resetea el índice.
 def _finalize(df: pd.DataFrame) -> pd.DataFrame:
-    """Ajustes finales sobre el DataFrame ya concatenado."""
     for col in _CATEGORY_COLUMNS:
         if col in df.columns:
             df[col] = df[col].astype("category")
     return df.reset_index(drop=True)
 
 
-# --------------------------------------------------------------------------- #
-# API pública
-# --------------------------------------------------------------------------- #
-
+# Carga el CSV en paralelo: reparte n_workers x chunks_per_worker rangos entre procesos worker.
 def load_csv(
     path: str,
     n_workers: Optional[int] = None,
     chunks_per_worker: int = 1,
 ) -> pd.DataFrame:
-    """Carga el CSV en paralelo (chunking por bytes + ProcessPoolExecutor).
-
-    Args:
-        path: ruta al CSV.
-        n_workers: número de procesos. Por defecto ``os.cpu_count()``.
-        chunks_per_worker: cuántos chunks generar por worker. >1 mejora el
-            balanceo de carga a costa de más overhead de serialización.
-
-    Returns:
-        DataFrame limpio y tipado, con columnas canónicas y ``EDAD`` derivada.
-    """
     if n_workers is None:
         n_workers = os.cpu_count() or 1
     n_workers = max(1, n_workers)
@@ -255,8 +188,8 @@ def load_csv(
     return _finalize(df)
 
 
+# Carga el CSV en un solo proceso (baseline para comparar tiempos con load_csv).
 def load_csv_sequential(path: str) -> pd.DataFrame:
-    """Carga el CSV en un solo proceso (baseline para comparar tiempos)."""
     df_raw = pd.read_csv(
         path,
         sep=_SEP,
@@ -270,6 +203,6 @@ def load_csv_sequential(path: str) -> pd.DataFrame:
     return _finalize(clean_chunk(df_raw))
 
 
+# DataFrame vacío con las columnas crudas (para archivos sin datos).
 def _empty_raw() -> pd.DataFrame:
-    """DataFrame vacío con las columnas crudas (para archivos sin datos)."""
     return pd.DataFrame({c: pd.Series(dtype="object") for c in RAW_COLUMNS})

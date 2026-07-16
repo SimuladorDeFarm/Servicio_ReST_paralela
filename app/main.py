@@ -13,6 +13,8 @@ N_WORKERS = int(os.getenv("VENTAS_N_WORKERS", os.cpu_count() or 1))
 CHUNKS_PER_WORKER = int(os.getenv("VENTAS_CHUNKS_PER_WORKER", 2))
 
 
+# Carga desatendida del CSV al arrancar la app (antes de aceptar requests); deja el
+# resultado en data_store para que los endpoints lo lean.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(
@@ -41,6 +43,7 @@ app.include_router(endpoints.router)
 errors.register_exception_handlers(app)
 
 
+# Chequeo de salud simple (no depende de que el CSV ya esté cargado).
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}

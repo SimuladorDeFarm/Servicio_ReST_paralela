@@ -1,25 +1,6 @@
-"""Configuración centralizada de logging con loguru.
-
-Se usa `loguru` en vez de configurar `logging.handlers.RotatingFileHandler`
-a mano: con una sola llamada a `logger.add(...)` ya maneja rotación,
-retención y formato del archivo.
-
-Cualquier módulo de la app registra eventos con:
-
-    from app.logging_config import logger
-    logger.info("...")
-
-Convención de niveles (para mantener el log legible: una línea por
-*operación de negocio*, no por cada paso interno):
-
-- `debug`   : detalle técnico interno, solo va al archivo (no a consola).
-- `info`    : inicio/ciclo de vida de una operación (ej. "iniciando carga...").
-- `success` : una operación de negocio terminó bien (ej. carga completa, una
-              consulta GET/POST resuelta). Es el nivel para "todo salió bien",
-              no solo para errores.
-- `warning` : algo inválido pero esperable (ej. 400 - filtro no reconocido).
-- `error` / `exception` : falla interna (ej. 500), con traceback.
-"""
+# Logging centralizado con loguru (maneja rotación/retención sin RotatingFileHandler propio).
+# Uso: from app.logging_config import logger
+# Niveles: info=inicio de operación, success=operación resuelta bien, warning=400, error=500.
 
 import sys
 from pathlib import Path

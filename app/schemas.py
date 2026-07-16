@@ -1,10 +1,4 @@
-"""Modelos Pydantic de request/response para `/v1/estadisticas/ventas`.
-
-Alimentan tanto la validación de FastAPI como la documentación Swagger
-(OpenAPI) generada automáticamente. Los nombres y formatos siguen el
-enunciado (CLAUDE.md §7): filtros soportados, cuerpo del POST y forma exacta
-de la respuesta y de los errores.
-"""
+# Modelos Pydantic de request/response para /v1/estadisticas/ventas (alimentan Swagger).
 
 from enum import Enum
 from typing import List, Optional
@@ -12,9 +6,8 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
+# Claves de filtro soportadas.
 class TipoConsulta(str, Enum):
-    """Claves de filtro soportadas (CLAUDE.md §7, tabla de filtros)."""
-
     GENERO = "GENERO"
     EDAD = "EDAD"
     CANAL = "CANAL"
@@ -25,9 +18,8 @@ class TipoConsulta(str, Enum):
     FECHA_HASTA = "FECHA_HASTA"
 
 
+# Un filtro individual dentro de la lista `consultas` del POST.
 class ConsultaFiltro(BaseModel):
-    """Un filtro individual dentro de la lista `consultas` del POST."""
-
     consulta: TipoConsulta = Field(..., description="Clave del filtro a aplicar")
     valor: str = Field(..., description="Valor textual exacto del filtro")
 
@@ -38,9 +30,9 @@ class ConsultaFiltro(BaseModel):
     }
 
 
+# Body del POST /v1/estadisticas/ventas.
 class EstadisticasVentasRequest(BaseModel):
-    """Body del `POST /v1/estadisticas/ventas`."""
-
+    # Filtros a combinar (AND); vacía = estadísticas sobre el total sin filtrar.
     consultas: List[ConsultaFiltro] = Field(
         default_factory=list,
         description=(
@@ -62,12 +54,8 @@ class EstadisticasVentasRequest(BaseModel):
     }
 
 
+# Filtros predeterminados del GET (query params), todos opcionales.
 class EstadisticasVentasQueryParams(BaseModel):
-    """Filtros predeterminados del `GET /v1/estadisticas/ventas` (query params).
-
-    Todos son opcionales; se combinan igual que los `consultas` del POST.
-    """
-
     genero: Optional[str] = Field(None, description="Femenino, Masculino, Otro, No especificado")
     edad: Optional[int] = Field(None, description="Edad exacta del cliente")
     canal: Optional[str] = Field(None, description="POS, WEB, APP, CCT, APR, WPR")
@@ -78,9 +66,8 @@ class EstadisticasVentasQueryParams(BaseModel):
     fecha_hasta: Optional[str] = Field(None, description="Fecha ISO-8601, límite superior")
 
 
+# Respuesta exitosa (GET y POST): las 7 métricas calculadas sobre MONTO_APLICADO.
 class EstadisticasVentasResponse(BaseModel):
-    """Respuesta exitosa (ambos métodos), fórmulas en CLAUDE.md §7."""
-
     suma: float
     conteo: int
     promedio: float
@@ -104,9 +91,8 @@ class EstadisticasVentasResponse(BaseModel):
     }
 
 
+# Formato exacto de error para 400 y 500.
 class ErrorResponse(BaseModel):
-    """Formato exacto de error para 400 y 500 (CLAUDE.md §7)."""
-
     detail: str
     instance: str
     status: int

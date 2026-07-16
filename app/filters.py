@@ -1,19 +1,8 @@
-"""Validación y aplicación de los filtros soportados (CLAUDE.md §7, §9).
-
-Cada filtro soportado tiene una función que valida/convierte el `valor`
-textual y construye la máscara booleana correspondiente sobre el DataFrame
-de ventas ya cargado. `aplicar_filtros` combina todos los filtros de una
-consulta con AND y devuelve el subconjunto resultante.
-
-Mapeo de claves de filtro a columnas del DataFrame (`data_loader`):
-- GENERO            -> GENERO (etiqueta textual ya normalizada)
-- EDAD              -> EDAD (derivada de FECHA_NACIMIENTO)
-- CANAL             -> CANAL
-- CODIGO_PRODUCTO   -> SKU (identificador único de producto)
-- ID_PERSONA        -> CODIGO_CLIENTE (UUID)
-- LOCAL             -> LOCAL
-- FECHA_DESDE/HASTA -> FECHA (límites inclusivos)
-"""
+# Valida y aplica los 8 filtros soportados sobre el DataFrame de ventas ya cargado.
+#
+# Mapeo de filtro -> columna: GENERO->GENERO, EDAD->EDAD, CANAL->CANAL,
+# CODIGO_PRODUCTO->SKU, ID_PERSONA->CODIGO_CLIENTE, LOCAL->LOCAL,
+# FECHA_DESDE/HASTA->FECHA (límites inclusivos).
 
 from typing import Callable, Dict, List
 
@@ -25,15 +14,12 @@ GENEROS_VALIDOS = {"No especificado", "Masculino", "Femenino", "Otro"}
 CANALES_VALIDOS = {"POS", "WEB", "APP", "CCT", "APR", "WPR"}
 
 
+# Valor no convertible al tipo esperado o fuera de los valores permitidos -> 400 (VF).
 class FiltroInvalidoError(ValueError):
-    """Un filtro trae un valor no convertible al tipo esperado.
-
-    El módulo `errors` (paso siguiente del roadmap) traducirá esta excepción
-    a un 400 con `errorCode: "VF"` (Validación Fallida), tal como especifica
-    el enunciado.
-    """
+    pass
 
 
+# GENERO: coincidencia exacta con una de las 4 etiquetas válidas.
 def _mask_genero(df: pd.DataFrame, valor: str) -> pd.Series:
     if valor not in GENEROS_VALIDOS:
         raise FiltroInvalidoError(
@@ -42,6 +28,7 @@ def _mask_genero(df: pd.DataFrame, valor: str) -> pd.Series:
     return df["GENERO"] == valor
 
 
+# EDAD: convierte a entero y compara contra la columna EDAD derivada.
 def _mask_edad(df: pd.DataFrame, valor: str) -> pd.Series:
     try:
         edad = int(valor)
@@ -50,6 +37,7 @@ def _mask_edad(df: pd.DataFrame, valor: str) -> pd.Series:
     return df["EDAD"] == edad
 
 
+# CANAL: coincidencia exacta con uno de los 6 canales válidos.
 def _mask_canal(df: pd.DataFrame, valor: str) -> pd.Series:
     if valor not in CANALES_VALIDOS:
         raise FiltroInvalidoError(
@@ -58,6 +46,7 @@ def _mask_canal(df: pd.DataFrame, valor: str) -> pd.Series:
     return df["CANAL"] == valor
 
 
+# CODIGO_PRODUCTO: convierte a entero y compara contra SKU.
 def _mask_codigo_producto(df: pd.DataFrame, valor: str) -> pd.Series:
     try:
         sku = int(valor)
@@ -68,12 +57,14 @@ def _mask_codigo_producto(df: pd.DataFrame, valor: str) -> pd.Series:
     return df["SKU"] == sku
 
 
+# ID_PERSONA: coincidencia exacta de string (UUID) contra CODIGO_CLIENTE, no vacío.
 def _mask_id_persona(df: pd.DataFrame, valor: str) -> pd.Series:
     if not valor:
         raise FiltroInvalidoError("ID_PERSONA no puede ser vacío")
     return df["CODIGO_CLIENTE"] == valor
 
 
+# LOCAL: convierte a entero y compara contra la columna LOCAL.
 def _mask_local(df: pd.DataFrame, valor: str) -> pd.Series:
     try:
         local = int(valor)
@@ -82,6 +73,7 @@ def _mask_local(df: pd.DataFrame, valor: str) -> pd.Series:
     return df["LOCAL"] == local
 
 
+# Parsea una fecha ISO-8601; lanza FiltroInvalidoError si no es convertible.
 def _parse_fecha(valor: str, clave: str) -> pd.Timestamp:
     fecha = pd.to_datetime(valor, errors="coerce")
     if pd.isna(fecha):
@@ -91,14 +83,17 @@ def _parse_fecha(valor: str, clave: str) -> pd.Timestamp:
     return fecha
 
 
+# FECHA_DESDE: límite inferior inclusivo sobre la columna FECHA.
 def _mask_fecha_desde(df: pd.DataFrame, valor: str) -> pd.Series:
     return df["FECHA"] >= _parse_fecha(valor, "FECHA_DESDE")
 
 
+# FECHA_HASTA: límite superior inclusivo sobre la columna FECHA.
 def _mask_fecha_hasta(df: pd.DataFrame, valor: str) -> pd.Series:
     return df["FECHA"] <= _parse_fecha(valor, "FECHA_HASTA")
 
 
+# Tabla de despacho: clave de filtro -> función que construye su máscara.
 _CONSTRUCTORES_MASCARA: Dict[TipoConsulta, Callable[[pd.DataFrame, str], pd.Series]] = {
     TipoConsulta.GENERO: _mask_genero,
     TipoConsulta.EDAD: _mask_edad,
@@ -111,12 +106,9 @@ _CONSTRUCTORES_MASCARA: Dict[TipoConsulta, Callable[[pd.DataFrame, str], pd.Seri
 }
 
 
+# Combina todos los filtros con AND (fillna(False) evita que NaN/NaT rompan el indexado
+# booleano) y devuelve el subconjunto resultante; lista vacía devuelve el DataFrame completo.
 def aplicar_filtros(df: pd.DataFrame, filtros: List[ConsultaFiltro]) -> pd.DataFrame:
-    """Aplica todos los `filtros` combinados con AND y devuelve el subconjunto.
-
-    Con `filtros` vacío devuelve `df` completo (sin filtrar) — el enunciado
-    permite consultas sin filtros, que entregan el total sin restringir.
-    """
     mascara = pd.Series(True, index=df.index)
     for filtro in filtros:
         constructor = _CONSTRUCTORES_MASCARA[filtro.consulta]

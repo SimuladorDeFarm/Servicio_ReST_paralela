@@ -1,15 +1,5 @@
-"""Cálculo puro de las métricas estadísticas de ventas (CLAUDE.md §7, §9).
-
-Cada función es pura (sin estado global, sin I/O) y opera sobre una
-`pd.Series` numérica — típicamente la columna `MONTO_APLICADO` del
-DataFrame ya filtrado por `filters`. Esto permite testear cada métrica de
-forma aislada, sin pasar por el CSV real ni por `data_store`.
-
-Fórmulas:
-- promedio = suma / conteo
-- mediana: valor central (si el conteo es par, promedio de los 2 centrales)
-- desviación estándar: raíz cuadrada de la varianza poblacional (ddof=0)
-"""
+# Cálculo puro de las 7 métricas estadísticas (suma, conteo, promedio, minimo, maximo,
+# mediana, desviacion_estandar). Funciones sin estado global, operan sobre cualquier pd.Series.
 
 from typing import Dict
 
@@ -17,49 +7,45 @@ import numpy as np
 import pandas as pd
 
 
+# Conjunto vacío: promedio/minimo/maximo/mediana/desviacion_estandar quedan indefinidos -> 500 (IE).
 class SinDatosError(ValueError):
-    """El subconjunto está vacío.
-
-    Las métricas que dependen del conteo (promedio, mínimo, máximo, mediana,
-    desviación estándar) no están matemáticamente definidas sobre un conjunto
-    vacío. El handler de errores (módulo `errors`, aún no implementado)
-    traduce esta excepción a un 500 con `errorCode: "IE"`, como especifica
-    el enunciado ("error de cálculo interno").
-    """
+    pass
 
 
+# Número de registros del subconjunto. Válido incluso si está vacío (0).
 def conteo(valores: pd.Series) -> int:
-    """Número de registros del subconjunto. Válido incluso si está vacío (0)."""
     return int(len(valores))
 
 
+# Suma de los valores. 0.0 si el subconjunto está vacío.
 def suma(valores: pd.Series) -> float:
-    """Suma de los valores. 0.0 si el subconjunto está vacío."""
     return float(valores.sum())
 
 
+# suma / conteo.
 def promedio(valores: pd.Series) -> float:
-    """suma / conteo."""
     n = conteo(valores)
     if n == 0:
         raise SinDatosError("no hay datos para calcular el promedio")
     return suma(valores) / n
 
 
+# Valor mínimo del subconjunto.
 def minimo(valores: pd.Series) -> float:
     if conteo(valores) == 0:
         raise SinDatosError("no hay datos para calcular el mínimo")
     return float(valores.min())
 
 
+# Valor máximo del subconjunto.
 def maximo(valores: pd.Series) -> float:
     if conteo(valores) == 0:
         raise SinDatosError("no hay datos para calcular el máximo")
     return float(valores.max())
 
 
+# Valor central; promedio de los 2 centrales si el conteo es par.
 def mediana(valores: pd.Series) -> float:
-    """Valor central; promedio de los 2 centrales si el conteo es par."""
     if conteo(valores) == 0:
         raise SinDatosError("no hay datos para calcular la mediana")
     ordenados = np.sort(np.asarray(valores, dtype=float))
@@ -70,21 +56,16 @@ def mediana(valores: pd.Series) -> float:
     return float(ordenados[mitad])
 
 
+# Raíz cuadrada de la varianza poblacional (ddof=0).
 def desviacion_estandar(valores: pd.Series) -> float:
-    """Raíz cuadrada de la varianza poblacional (ddof=0)."""
     if conteo(valores) == 0:
         raise SinDatosError("no hay datos para calcular la desviación estándar")
     varianza = float(np.asarray(valores, dtype=float).var(ddof=0))
     return float(np.sqrt(varianza))
 
 
+# Calcula las 7 métricas y las devuelve en un dict con las claves exactas de la respuesta.
 def calcular_estadisticas(valores: pd.Series) -> Dict[str, float]:
-    """Calcula las 7 métricas del enunciado sobre `valores`.
-
-    Devuelve un dict con las claves exactas de la respuesta (CLAUDE.md §7):
-    suma, conteo, promedio, minimo, maximo, mediana, desviacion_estandar.
-    Lanza `SinDatosError` si `valores` está vacío (ver la excepción).
-    """
     return {
         "suma": suma(valores),
         "conteo": conteo(valores),
