@@ -8,6 +8,8 @@ venv/
 .ruff_cache/
 *.egg-info/
 data/
+logs/
 CLAUDE.md
 tests/
 scripts/
+logs/
