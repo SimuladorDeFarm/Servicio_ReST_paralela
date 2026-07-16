@@ -5,7 +5,7 @@ from typing import Dict
 
 from fastapi import FastAPI
 
-from app import data_loader, data_store
+from app import data_loader, data_store, endpoints
 from app.logging_config import logger
 
 CSV_PATH = os.getenv("VENTAS_CSV_PATH", "data/ventas_completas.csv")
@@ -37,6 +37,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="api_paralela", lifespan=lifespan)
+app.include_router(endpoints.router)
 
 
 @app.get("/health")
