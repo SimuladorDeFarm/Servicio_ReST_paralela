@@ -2,3 +2,9 @@ fastapi
 uvicorn[standard]
 pydantic-settings
 python-dotenv
+# Carga paralela y estructura en memoria (data_loader / data_store).
+# Versiones fijadas por compatibilidad con Python 3.8.
+numpy==1.24.4
+pandas==1.5.3
+# Pruebas
+pytest==7.4.4
