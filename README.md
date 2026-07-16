@@ -1,4 +1,4 @@
-# api_paralela
+# Api Computacion Paralela
 
 Servicio REST de estadísticas de ventas (Cruz Morada) con carga paralela de CSV.
 
@@ -10,8 +10,8 @@ Servicio REST de estadísticas de ventas (Cruz Morada) con carga paralela de CSV
 ## Instalación
 
 ```bash
-git clone <url-del-repo>
-cd api_paralela
+git clone https://github.com/SimuladorDeFarm/Servicio_ReST_paralela
+cd Servicio_ReST_paralela
 
 python3 -m venv .venv
 source .venv/bin/activate
