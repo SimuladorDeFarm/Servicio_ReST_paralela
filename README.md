@@ -20,12 +20,17 @@ pip install -r requirements.txt
 
 ### Descargar el CSV de ventas
 
+**Opción 1** — Script automático:
 ```bash
 python -m scripts.descargar_csv
 ```
 
-Descarga el CSV (~635 MB) desde Google Drive y lo guarda en
-`data/ventas_completas.csv`. Si el archivo ya existe, no lo descarga de nuevo.
+**Opción 2** — Descarga manual (si el script falla por permisos de Drive):
+1. Descargar desde: https://drive.google.com/file/d/15jLBlJ9eMQSoHsoCMnFWBGopr98FIHlK/view
+2. Crear la carpeta `data/` en la raíz del proyecto si no existe.
+3. Guardar el archivo como `data/ventas_completas.csv`.
+
+El CSV pesa ~635 MB. La API no arranca sin él.
 
 ## Ejecución
 

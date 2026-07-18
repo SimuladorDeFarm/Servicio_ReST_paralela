@@ -11,12 +11,13 @@ LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Formato legible para humanos: sin milisegundos ni ruta completa del módulo.
+# Timestamps en ISO 8601 (YYYY-MM-DDTHH:mm:ss.SSSSSSZ) para trazabilidad estandarizada.
 _FORMATO_CONSOLA = (
-    "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | "
+    "<green>{time:YYYY-MM-DDTHH:mm:ss.SSSSSSZ}</green> | <level>{level: <8}</level> | "
     "<cyan>{name}</cyan> - <level>{message}</level>"
 )
 _FORMATO_ARCHIVO = (
-    "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}"
+    "{time:YYYY-MM-DDTHH:mm:ss.SSSSSSZ} | {level: <8} | {name}:{function}:{line} - {message}"
 )
 
 logger.remove()  # quita el handler default de loguru para configurar el propio
