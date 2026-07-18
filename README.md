@@ -54,7 +54,12 @@ python -m scripts.descargar_csv
 **Opción 2** — Descarga manual (si el script falla por permisos de Drive):
 1. Descargar desde: https://drive.google.com/file/d/15jLBlJ9eMQSoHsoCMnFWBGopr98FIHlK/view
 2. Crear la carpeta `data/` en la raíz del proyecto si no existe.
-3. Guardar el archivo como `data/ventas_completas.csv`.
+3. Si el archivo descargado viene comprimido (`ventas_completas.csv.gz`),
+   descomprimirlo antes de continuar:
+   ```bash
+   gunzip ventas_completas.csv.gz
+   ```
+4. Guardar (o mover) el archivo resultante como `data/ventas_completas.csv`.
 
 El CSV pesa ~635 MB. La API no arranca sin él.
 
