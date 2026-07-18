@@ -1,3 +1,16 @@
+import os
+from pathlib import Path
+
+# `app.main` lee VENTAS_CSV_PATH una sola vez, al importarse (constante de
+# módulo). Como conftest.py es lo primero que pytest importa, hay que fijar
+# esto acá -- si no, el lifespan de cualquier TestClient carga el CSV real de
+# ~634 MB en vez de la fixture pequeña. El DataFrame real de cada test de
+# endpoint igual lo pisa `cargar_df_prueba` (autouse, más abajo); esto solo
+# evita esa carga real innecesaria y lenta durante el arranque de la app.
+os.environ.setdefault("VENTAS_CSV_PATH", str(Path(__file__).parent / "fixtures" / "ventas_prueba.csv"))
+os.environ.setdefault("VENTAS_N_WORKERS", "2")
+os.environ.setdefault("VENTAS_CHUNKS_PER_WORKER", "1")
+
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient

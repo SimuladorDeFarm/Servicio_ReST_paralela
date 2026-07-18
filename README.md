@@ -18,6 +18,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+### Configurar variables de entorno
+
+```bash
+cp .env.example .env
+```
+
+Edita `.env` con los valores que necesites (ver tabla de la sección
+[Variables de entorno opcionales](#variables-de-entorno-opcionales)). Si no
+tocas nada, la API arranca igual con los defaults.
+
 ### Descargar el CSV de ventas
 
 **Opción 1** — Script automático:
@@ -33,6 +43,8 @@ python -m scripts.descargar_csv
 El CSV pesa ~635 MB. La API no arranca sin él.
 
 ## Ejecución
+
+### Ejecución con HTTP
 
 Desde la **raíz del proyecto** (no desde dentro de `app/`):
 
@@ -65,16 +77,46 @@ API queda disponible.
 | `API_KEY` | (vacía = sin auth) | Si se define, toda petición debe incluir `X-API-Key` |
 | `CORS_ORIGINS` | `*` | Orígenes permitidos para CORS, separados por coma |
 
+Estas variables se pueden definir de dos formas (la app las lee igual en
+ambos casos, vía `os.getenv`):
+
+1. **Archivo `.env`** (recomendado): editando el `.env` creado a partir de
+   `.env.example` (ver [Configurar variables de entorno](#configurar-variables-de-entorno)).
+   `app/main.py` lo carga automáticamente al arrancar con `load_dotenv()`.
+2. **Exportadas en la shell**: `export API_KEY="mi-clave-secreta"` antes de
+   correr uvicorn. Si una variable está definida tanto en `.env` como en la
+   shell, **gana la de la shell**.
+
 ## Autenticación
 
-Si se configura la variable `API_KEY`, toda petición debe incluir el header
-`X-API-Key`:
+`API_KEY` es un mecanismo de autenticación **propio y opcional** del
+servicio: no se obtiene de ningún proveedor externo, la define quien
+despliega la API eligiendo cualquier string secreto.
 
-```bash
-curl -H "X-API-Key: mi-clave" "https://127.0.0.1:8000/v1/estadisticas/ventas?CANAL=POS"
+- **Por defecto** (`API_KEY` no definida): la API funciona **sin
+  autenticación**, cualquiera puede llamarla.
+- **Si se define** `API_KEY` (en `.env` o como variable de entorno del
+  sistema), toda petición debe incluir ese mismo valor en el header
+  `X-API-Key`; si falta o no coincide, responde `401 Unauthorized`.
+
+Para activarla, define la variable en `.env`:
+
+```
+API_KEY=mi-clave-secreta
 ```
 
-Si `API_KEY` no está definida, la API funciona sin autenticación.
+o expórtala antes de levantar la API:
+
+```bash
+export API_KEY="mi-clave-secreta"
+uvicorn app.main:app --reload
+```
+
+Y luego inclúyela en cada request:
+
+```bash
+curl -H "X-API-Key: mi-clave-secreta" "https://127.0.0.1:8000/v1/estadisticas/ventas?CANAL=POS"
+```
 
 ## Endpoint
 

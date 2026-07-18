@@ -1,22 +1,22 @@
 """Pruebas de integración de GET/POST /v1/estadisticas/ventas.
 
-Usa la fixture pequeña (5 filas, valores conocidos) en vez del CSV real,
-apuntando `VENTAS_CSV_PATH` allí *antes* de importar `app.main` (los valores
-de configuración se leen una sola vez, al importar el módulo).
+Los datos servidos por cada test son el DataFrame sintético que
+`conftest.py` inyecta vía el fixture `autouse` `cargar_df_prueba` (5 filas,
+valores conocidos) -- no el CSV cargado al arrancar la app, que ese fixture
+pisa antes de cada test. Los valores esperados abajo salen de esos datos:
+
+    FECHA                CANAL  SKU  MONTO   LOCAL  GENERO      EDAD
+    2024-05-01T10:00:00  POS    100  1000.0  10     Masculino   34
+    2024-05-15T14:30:00  WEB    200  2000.0  20     Femenino    38
+    2024-05-31T23:00:00  POS    100  3000.0  10     Masculino   34
+    2024-06-01T08:00:00  APP    300  4000.0  30     Otro        24
+    2024-06-15T12:00:00  POS    200  5000.0  20     Femenino    38
 """
 
-import os
-from pathlib import Path
+import pytest
+from fastapi.testclient import TestClient
 
-FIXTURE = Path(__file__).parent / "fixtures" / "ventas_prueba.csv"
-os.environ["VENTAS_CSV_PATH"] = str(FIXTURE)
-os.environ["VENTAS_N_WORKERS"] = "2"
-os.environ["VENTAS_CHUNKS_PER_WORKER"] = "1"
-
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-
-from app.main import app  # noqa: E402
+from app.main import app
 
 
 @pytest.fixture(scope="module")
@@ -30,11 +30,11 @@ def test_get_sin_filtros_devuelve_totales(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["conteo"] == 5
-    assert body["suma"] == 7750.0
+    assert body["suma"] == 15000.0
 
 
 def test_get_con_filtro_genero(client):
-    resp = client.get("/v1/estadisticas/ventas", params={"genero": "Masculino"})
+    resp = client.get("/v1/estadisticas/ventas", params={"GENERO": "Masculino"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["conteo"] == 2
@@ -44,45 +44,45 @@ def test_get_con_filtro_genero(client):
 def test_get_con_multiples_filtros(client):
     resp = client.get(
         "/v1/estadisticas/ventas",
-        params={"genero": "Femenino", "canal": "WEB"},
+        params={"GENERO": "Femenino", "CANAL": "WEB"},
     )
     assert resp.status_code == 200
     body = resp.json()
     assert body["conteo"] == 1
-    assert body["suma"] == 2500.0
+    assert body["suma"] == 2000.0
 
 
 def test_get_con_filtro_invalido_da_400(client):
-    resp = client.get("/v1/estadisticas/ventas", params={"canal": "FAX"})
+    resp = client.get("/v1/estadisticas/ventas", params={"CANAL": "FAX"})
     assert resp.status_code == 400
 
 
 def test_get_sin_coincidencias_da_500(client):
-    resp = client.get("/v1/estadisticas/ventas", params={"local": "999999"})
+    resp = client.get("/v1/estadisticas/ventas", params={"LOCAL": "999999"})
     assert resp.status_code == 500
 
 
 def test_get_query_param_tipo_incorrecto_da_400(client):
-    """edad no convertible a int a nivel de FastAPI/Pydantic (antes de
+    """EDAD no convertible a int a nivel de FastAPI/Pydantic (antes de
     llegar a `filters`) también debe quedar en el formato 400/VF."""
-    resp = client.get("/v1/estadisticas/ventas", params={"edad": "no-es-un-entero"})
+    resp = client.get("/v1/estadisticas/ventas", params={"EDAD": "no-es-un-entero"})
     assert resp.status_code == 400
     body = resp.json()
     assert body["errorCode"] == "VF"
 
 
-def test_post_consultas_vacia_devuelve_totales(client):
+def test_post_consultas_vacia_da_400(client):
+    """`consultas` debe traer al menos un filtro (ver schemas.py); vacía es 400."""
     resp = client.post("/v1/estadisticas/ventas", json={"consultas": []})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["conteo"] == 5
-    assert body["suma"] == 7750.0
+    assert resp.status_code == 400
+    assert resp.json()["errorCode"] == "VF"
 
 
-def test_post_sin_body_de_consultas_devuelve_totales(client):
+def test_post_sin_body_de_consultas_da_400(client):
+    """`consultas` es requerido en el body; omitirlo también es 400."""
     resp = client.post("/v1/estadisticas/ventas", json={})
-    assert resp.status_code == 200
-    assert resp.json()["conteo"] == 5
+    assert resp.status_code == 400
+    assert resp.json()["errorCode"] == "VF"
 
 
 def test_post_con_consultas_combinadas(client):
@@ -91,7 +91,7 @@ def test_post_con_consultas_combinadas(client):
         json={
             "consultas": [
                 {"consulta": "GENERO", "valor": "Masculino"},
-                {"consulta": "LOCAL", "valor": "371"},
+                {"consulta": "LOCAL", "valor": "10"},
             ]
         },
     )
@@ -142,7 +142,7 @@ _CAMPOS_ERROR_ESPERADOS = {
 
 
 def test_error_400_tiene_formato_exacto(client):
-    resp = client.get("/v1/estadisticas/ventas", params={"canal": "FAX"})
+    resp = client.get("/v1/estadisticas/ventas", params={"CANAL": "FAX"})
     body = resp.json()
 
     assert set(body.keys()) == _CAMPOS_ERROR_ESPERADOS

@@ -3,6 +3,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import Dict
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter
@@ -11,6 +12,8 @@ from slowapi.util import get_remote_address
 
 from app import data_loader, data_store, endpoints, errors
 from app.logging_config import logger
+
+load_dotenv()
 
 CSV_PATH = os.getenv("VENTAS_CSV_PATH", "data/ventas_completas.csv")
 N_WORKERS = int(os.getenv("VENTAS_N_WORKERS", os.cpu_count() or 1))

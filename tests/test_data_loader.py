@@ -40,20 +40,18 @@ def test_fixture_valores_conocidos():
     assert df["MONTO_APLICADO"].sum() == 7750.0
 
     # Columnas canónicas (con guion bajo) presentes.
-    for col in [
-        "PORCENTAJE_DESCUENTO",
-        "MONTO_APLICADO",
-        "CODIGO_CLIENTE",
-        "RUN_CLIENTE",
-        "FECHA_NACIMIENTO",
-    ]:
+    for col in ["PORCENTAJE_DESCUENTO", "MONTO_APLICADO", "CODIGO_CLIENTE"]:
         assert col in df.columns
+
+    # Minimización de datos: columnas sensibles se descartan tras calcular
+    # EDAD (ver _COLUMNAS_SENSIBLES en data_loader._finalize).
+    for col in ["RUN_CLIENTE", "NOMBRES", "APELLIDOS", "FECHA_NACIMIENTO", "BOLETA"]:
+        assert col not in df.columns
 
 
 def test_fixture_tipos():
     df = data_loader.load_csv_sequential(str(FIXTURE))
     assert pd.api.types.is_datetime64_any_dtype(df["FECHA"])
-    assert pd.api.types.is_datetime64_any_dtype(df["FECHA_NACIMIENTO"])
     assert isinstance(df["CANAL"].dtype, pd.CategoricalDtype)
     assert isinstance(df["GENERO"].dtype, pd.CategoricalDtype)
     assert isinstance(df["LOCAL"].dtype, pd.CategoricalDtype)

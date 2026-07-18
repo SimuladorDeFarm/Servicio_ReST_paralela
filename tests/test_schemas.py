@@ -24,9 +24,16 @@ def test_consulta_filtro_clave_no_reconocida_lanza_error():
         ConsultaFiltro(consulta="NO_EXISTE", valor="x")
 
 
-def test_request_consultas_vacia_es_valida_por_defecto():
-    req = EstadisticasVentasRequest()
-    assert req.consultas == []
+def test_request_sin_consultas_lanza_error():
+    """`consultas` es requerido (sin default) en el body del POST."""
+    with pytest.raises(ValidationError):
+        EstadisticasVentasRequest()
+
+
+def test_request_consultas_vacia_lanza_error():
+    """Lista vacía también es inválida: debe traer al menos un filtro."""
+    with pytest.raises(ValidationError):
+        EstadisticasVentasRequest(consultas=[])
 
 
 def test_request_con_multiples_consultas():
@@ -43,15 +50,15 @@ def test_request_con_multiples_consultas():
 
 def test_query_params_todos_opcionales():
     q = EstadisticasVentasQueryParams()
-    assert q.genero is None
-    assert q.edad is None
-    assert q.local is None
+    assert q.GENERO is None
+    assert q.EDAD is None
+    assert q.LOCAL is None
 
 
 def test_query_params_tipos():
-    q = EstadisticasVentasQueryParams(edad=31, local=371, genero="Femenino")
-    assert q.edad == 31
-    assert q.local == 371
+    q = EstadisticasVentasQueryParams(EDAD=31, LOCAL=371, GENERO="Femenino")
+    assert q.EDAD == 31
+    assert q.LOCAL == 371
 
 
 def test_response_campos_completos():
