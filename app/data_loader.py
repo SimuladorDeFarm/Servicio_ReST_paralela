@@ -153,11 +153,16 @@ def _process_range(task: Tuple[str, int, int]) -> pd.DataFrame:
     return clean_chunk(df_raw)
 
 
-# Convierte columnas de baja cardinalidad a category y resetea el índice.
+_COLUMNAS_SENSIBLES = ["RUN_CLIENTE", "NOMBRES", "APELLIDOS", "FECHA_NACIMIENTO", "BOLETA"]
+
+
+# Convierte columnas de baja cardinalidad a category, elimina datos personales
+# innecesarios y resetea el índice.
 def _finalize(df: pd.DataFrame) -> pd.DataFrame:
     for col in _CATEGORY_COLUMNS:
         if col in df.columns:
             df[col] = df[col].astype("category")
+    df = df.drop(columns=[c for c in _COLUMNAS_SENSIBLES if c in df.columns])
     return df.reset_index(drop=True)
 
 

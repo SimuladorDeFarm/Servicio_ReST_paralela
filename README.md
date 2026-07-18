@@ -5,7 +5,6 @@ Servicio REST de estadísticas de ventas (Cruz Morada) con carga paralela de CSV
 ## Requisitos
 
 - Python 3.8+
-- El CSV de ventas en `data/ventas_completas.csv`
 
 ## Instalación
 
@@ -19,6 +18,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+### Descargar el CSV de ventas
+
+```bash
+python -m scripts.descargar_csv
+```
+
+Descarga el CSV (~635 MB) desde Google Drive y lo guarda en
+`data/ventas_completas.csv`. Si el archivo ya existe, no lo descarga de nuevo.
+
 ## Ejecución
 
 Desde la **raíz del proyecto** (no desde dentro de `app/`):
@@ -28,9 +36,19 @@ source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
+### Ejecución con HTTPS
+
+```bash
+# Generar certificados autofirmados (una sola vez):
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes
+
+# Arrancar con HTTPS:
+uvicorn app.main:app --ssl-keyfile key.pem --ssl-certfile cert.pem
+```
+
 La app carga el CSV automáticamente al iniciar (carga desatendida) e imprime
 en consola el progreso, tiempo de carga y workers usados. Una vez lista, la
-API queda disponible en `http://127.0.0.1:8000`.
+API queda disponible.
 
 ### Variables de entorno opcionales
 
@@ -39,12 +57,19 @@ API queda disponible en `http://127.0.0.1:8000`.
 | `VENTAS_CSV_PATH` | `data/ventas_completas.csv` | Ruta al CSV a cargar |
 | `VENTAS_N_WORKERS` | Nº de CPUs disponibles | Procesos worker para la carga paralela |
 | `VENTAS_CHUNKS_PER_WORKER` | `2` | Chunks por worker |
+| `API_KEY` | (vacía = sin auth) | Si se define, toda petición debe incluir `X-API-Key` |
+| `CORS_ORIGINS` | `*` | Orígenes permitidos para CORS, separados por coma |
 
-Ejemplo:
+## Autenticación
+
+Si se configura la variable `API_KEY`, toda petición debe incluir el header
+`X-API-Key`:
 
 ```bash
-VENTAS_CSV_PATH=tests/fixtures/ventas_prueba.csv uvicorn app.main:app --reload
+curl -H "X-API-Key: mi-clave" "https://127.0.0.1:8000/v1/estadisticas/ventas?CANAL=POS"
 ```
+
+Si `API_KEY` no está definida, la API funciona sin autenticación.
 
 ## Endpoint
 
@@ -59,22 +84,22 @@ lista `consultas` en el body.
 
 | Filtro | Query param (GET) | Tipo |
 |---|---|---|
-| GENERO | `genero` | `No especificado`, `Masculino`, `Femenino`, `Otro` |
-| EDAD | `edad` | entero |
-| CANAL | `canal` | `POS`, `WEB`, `APP`, `CCT`, `APR`, `WPR` |
-| CODIGO_PRODUCTO | `codigo_producto` | entero (SKU) |
-| ID_PERSONA | `id_persona` | UUID del cliente |
-| LOCAL | `local` | entero |
-| FECHA_DESDE | `fecha_desde` | fecha ISO-8601 |
-| FECHA_HASTA | `fecha_hasta` | fecha ISO-8601 |
+| GENERO | `GENERO` | `No especificado`, `Masculino`, `Femenino`, `Otro` |
+| EDAD | `EDAD` | entero |
+| CANAL | `CANAL` | `POS`, `WEB`, `APP`, `CCT`, `APR`, `WPR` |
+| CODIGO_PRODUCTO | `CODIGO_PRODUCTO` | entero (SKU) |
+| ID_PERSONA | `ID_PERSONA` | UUID del cliente |
+| LOCAL | `LOCAL` | entero |
+| FECHA_DESDE | `FECHA_DESDE` | fecha ISO-8601 |
+| FECHA_HASTA | `FECHA_HASTA` | fecha ISO-8601 (incluye todo el día) |
 
-Documentación interactiva (Swagger) en `http://127.0.0.1:8000/docs` una vez
-que la app está corriendo.
+Documentación interactiva (Swagger) en `/docs` una vez que la app está
+corriendo.
 
 ### Ejemplo GET
 
 ```bash
-curl "http://127.0.0.1:8000/v1/estadisticas/ventas?genero=Femenino&canal=POS"
+curl "http://127.0.0.1:8000/v1/estadisticas/ventas?GENERO=Femenino&CANAL=POS"
 ```
 
 ```json
@@ -102,25 +127,12 @@ curl -X POST http://127.0.0.1:8000/v1/estadisticas/ventas \
       }'
 ```
 
-```json
-{
-  "suma": 11002764448.0,
-  "conteo": 1033169,
-  "promedio": 10649.530181412722,
-  "minimo": 16.0,
-  "maximo": 226476.0,
-  "mediana": 7872.0,
-  "desviacion_estandar": 14317.090578047004
-}
-```
+El POST requiere al menos un filtro en la lista `consultas`. Un body vacío o
+con `consultas` vacía devuelve 400.
 
-`consultas` puede venir vacía (o el body vacío `{}`): en ese caso se
-devuelven las estadísticas sobre el total de ventas, sin filtrar.
+### Ejemplo de error (400)
 
-### Ejemplo de error (400 y 500)
-
-Un filtro con valor inválido (ej. `canal=FAX`, fuera de los canales
-soportados) responde 400:
+Un filtro con valor inválido (ej. `CANAL=FAX`) responde 400:
 
 ```json
 {
@@ -136,8 +148,24 @@ soportados) responde 400:
 }
 ```
 
-Un filtro que no encuentra ninguna fila (las métricas quedan indefinidas)
-responde 500 con el mismo formato, `errorCode: "IE"`.
+### Códigos de error
+
+| Código | Cuándo | `errorCode` |
+|---|---|---|
+| 400 | Filtro inválido, lista vacía, rango invertido, UUID inválido | `VF` |
+| 401 | API Key inválida o ausente (si `API_KEY` configurada) | `NA` |
+| 404 | Ruta no existente | `NE` |
+| 405 | Método HTTP no soportado (PUT, DELETE, etc.) | `MN` |
+| 429 | Rate limit excedido (60 req/min por IP) | `DL` |
+| 500 | Filtros válidos pero sin filas coincidentes | `IE` |
+
+## Seguridad
+
+- **HTTPS**: certificados SSL configurables en uvicorn.
+- **API Key**: autenticación opcional por header `X-API-Key`.
+- **CORS**: solo GET y POST, headers controlados.
+- **Rate limiting**: 60 req/min por IP (slowapi).
+- **Minimización de datos**: columnas con datos personales eliminadas tras la carga.
 
 ## Pruebas
 
@@ -148,25 +176,20 @@ source .venv/bin/activate
 pytest tests/ -v
 ```
 
-Corren contra una fixture pequeña (`tests/fixtures/ventas_prueba.csv`), no
-contra el CSV real — son rápidas y no dependen de tener el archivo de 635 MB.
+44 tests que cubren: filtros en mayúsculas, FECHA_HASTA día completo,
+validación UUID, rango de fechas invertido, consultas vacías, campos
+desconocidos, errores 404/405, autenticación API Key, minimización de datos.
 
-### Prueba automatizada de extremo a extremo (contra la API real)
+Corren contra una fixture en memoria (sin CSV externo) — son rápidas y
+deterministas.
 
-`datos.json` (raíz del proyecto) contiene casos de prueba — request +
-respuesta esperada — calculados contra el CSV real completo. Con la API
-corriendo (cargada con `data/ventas_completas.csv`), se pueden validar todos
-automáticamente:
+### Prueba E2E (contra la API real)
+
+Con la API corriendo y cargada con el CSV completo:
 
 ```bash
-# en una terminal:
-uvicorn app.main:app
-
-# en otra terminal:
 python -m scripts.probar_api
 ```
 
-Compara cada caso de `datos.json` contra la respuesta real de la API y
-reporta un resumen (`OK`/`FAIL` por caso). Devuelve código de salida 1 si
-algún caso falla, útil para automatizar la verificación tras cualquier
-cambio.
+Compara cada caso de `datos.json` contra la respuesta real y reporta
+`OK`/`FAIL` por caso.

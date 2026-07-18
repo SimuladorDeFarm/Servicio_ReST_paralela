@@ -70,11 +70,12 @@ importen sin depender de `main` (evita imports circulares).
 
 - `TipoConsulta`: enum con las 8 claves de filtro soportadas.
 - `ConsultaFiltro`: un filtro individual (`consulta` + `valor` textual).
-- `EstadisticasVentasRequest`: body del POST; `consultas` es una lista que
-  **por defecto es vacía** (consultas sin filtros son válidas y devuelven el
-  total, según el enunciado).
+- `EstadisticasVentasRequest`: body del POST; `consultas` es obligatorio y
+  debe contener al menos un filtro (lista vacía o nula → 400).
+  `extra: "forbid"` rechaza campos desconocidos en el body.
 - `EstadisticasVentasQueryParams`: los mismos filtros como query params
-  opcionales del GET, para usar con `Depends()`.
+  opcionales del GET en **mayúsculas** (`GENERO`, `CANAL`, etc.), tal como
+  los define la pauta.
 - `EstadisticasVentasResponse` / `ErrorResponse`: forma exacta de éxito y de
   error. Todos los modelos incluyen `description` y ejemplos
   (`json_schema_extra`) para que Swagger (`/docs`) los muestre completos.
@@ -89,16 +90,19 @@ Mapeo de cada clave de filtro a la columna real del DataFrame:
 | EDAD | `EDAD` | `int(valor)` |
 | CANAL | `CANAL` | debe ser uno de los 6 canales válidos |
 | CODIGO_PRODUCTO | `SKU` | `int(valor)` |
-| ID_PERSONA | `CODIGO_CLIENTE` | string, no vacío |
+| ID_PERSONA | `CODIGO_CLIENTE` | UUID válido (`uuid.UUID(valor)`) |
 | LOCAL | `LOCAL` | `int(valor)` |
-| FECHA_DESDE / FECHA_HASTA | `FECHA` | `pd.to_datetime(valor)`, límite inclusivo |
+| FECHA_DESDE | `FECHA` | `pd.to_datetime(valor)`, límite inferior inclusivo |
+| FECHA_HASTA | `FECHA` | `pd.to_datetime(valor)`, si no tiene hora se extiende a fin del día |
 
 `aplicar_filtros(df, filtros)` construye una máscara booleana por cada
 filtro y las combina con AND (`fillna(False)` antes de combinar, para que
 los `NaN`/`NaT` de columnas nullable — ej. `EDAD` sin fecha de nacimiento
-válida — no rompan el indexado booleano de pandas). Lista de filtros vacía
-devuelve el DataFrame completo. Cualquier valor no convertible o fuera de
-los valores permitidos lanza `FiltroInvalidoError`.
+válida — no rompan el indexado booleano de pandas). Antes de aplicar
+filtros, valida que si ambos `FECHA_DESDE` y `FECHA_HASTA` están presentes,
+el rango no esté invertido (lanza `FiltroInvalidoError` si lo está).
+Cualquier valor no convertible o fuera de los valores permitidos lanza
+`FiltroInvalidoError`.
 
 ### `stats.py` — cálculo de métricas (funciones puras)
 
@@ -192,3 +196,35 @@ en vez de arrancar sin datos). Configurable por variables de entorno
 - El CSV real tiene un formato distinto al documentado originalmente en el
   enunciado (separador `;`, comillas, cabeceras con espacios) — el loader ya
   lo maneja, pero vale la pena confirmarlo si llega un CSV de otra fuente.
+
+## 4. Seguridad
+
+### HTTPS
+La app soporta HTTPS configurando certificados SSL al arrancar uvicorn
+(`--ssl-keyfile`, `--ssl-certfile`). Protege contra interceptación de
+tráfico (man-in-the-middle).
+
+### Autenticación (API Key)
+Módulo `auth.py`: si la variable `API_KEY` está definida, toda petición
+al router debe incluir el header `X-API-Key`. Si no está definida, la API
+funciona sin autenticación. Respuesta 401 con formato de 9 campos.
+
+### Rate limiting
+Integración con `slowapi`: 60 peticiones por minuto por IP. Exceder el
+límite devuelve 429 con formato de 9 campos.
+
+### CORS
+`CORSMiddleware` configurado con métodos restringidos (`GET`, `POST`) y
+headers controlados (`Content-Type`, `X-API-Key`). Orígenes configurables
+por variable de entorno `CORS_ORIGINS`.
+
+### Minimización de datos personales
+`data_loader._finalize()` elimina las columnas sensibles (`RUN_CLIENTE`,
+`NOMBRES`, `APELLIDOS`, `FECHA_NACIMIENTO`, `BOLETA`) del DataFrame
+antes de guardarlo en `data_store`. Estas columnas no se usan para
+filtros ni métricas — solo se conservan las necesarias para el servicio.
+
+### Middleware de logging
+Cada petición HTTP se registra con: método, ruta, query params, código
+de respuesta, tiempo de procesamiento y User-Agent. Escribo a
+`logs/app.log` con rotación y retención automáticas.

@@ -4,6 +4,7 @@
 # CODIGO_PRODUCTO->SKU, ID_PERSONA->CODIGO_CLIENTE, LOCAL->LOCAL,
 # FECHA_DESDE/HASTA->FECHA (límites inclusivos).
 
+import uuid
 from typing import Callable, Dict, List
 
 import pandas as pd
@@ -57,10 +58,16 @@ def _mask_codigo_producto(df: pd.DataFrame, valor: str) -> pd.Series:
     return df["SKU"] == sku
 
 
-# ID_PERSONA: coincidencia exacta de string (UUID) contra CODIGO_CLIENTE, no vacío.
+# ID_PERSONA: coincidencia exacta de UUID contra CODIGO_CLIENTE.
 def _mask_id_persona(df: pd.DataFrame, valor: str) -> pd.Series:
     if not valor:
         raise FiltroInvalidoError("ID_PERSONA no puede ser vacío")
+    try:
+        uuid.UUID(valor)
+    except ValueError:
+        raise FiltroInvalidoError(
+            f"ID_PERSONA debe ser un UUID válido, se recibió '{valor}'"
+        )
     return df["CODIGO_CLIENTE"] == valor
 
 
@@ -89,8 +96,12 @@ def _mask_fecha_desde(df: pd.DataFrame, valor: str) -> pd.Series:
 
 
 # FECHA_HASTA: límite superior inclusivo sobre la columna FECHA.
+# Si la fecha no tiene componente de hora, se extiende al final del día (23:59:59.999999).
 def _mask_fecha_hasta(df: pd.DataFrame, valor: str) -> pd.Series:
-    return df["FECHA"] <= _parse_fecha(valor, "FECHA_HASTA")
+    fecha = _parse_fecha(valor, "FECHA_HASTA")
+    if fecha == fecha.normalize():
+        fecha = fecha + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
+    return df["FECHA"] <= fecha
 
 
 # Tabla de despacho: clave de filtro -> función que construye su máscara.
@@ -109,9 +120,24 @@ _CONSTRUCTORES_MASCARA: Dict[TipoConsulta, Callable[[pd.DataFrame, str], pd.Seri
 # Combina todos los filtros con AND (fillna(False) evita que NaN/NaT rompan el indexado
 # booleano) y devuelve el subconjunto resultante; lista vacía devuelve el DataFrame completo.
 def aplicar_filtros(df: pd.DataFrame, filtros: List[ConsultaFiltro]) -> pd.DataFrame:
+    _validar_rango_fechas(filtros)
     mascara = pd.Series(True, index=df.index)
     for filtro in filtros:
         constructor = _CONSTRUCTORES_MASCARA[filtro.consulta]
         mascara_filtro = constructor(df, filtro.valor).fillna(False)
         mascara &= mascara_filtro
     return df[mascara]
+
+
+def _validar_rango_fechas(filtros: List[ConsultaFiltro]) -> None:
+    fecha_desde = None
+    fecha_hasta = None
+    for filtro in filtros:
+        if filtro.consulta == TipoConsulta.FECHA_DESDE:
+            fecha_desde = _parse_fecha(filtro.valor, "FECHA_DESDE")
+        elif filtro.consulta == TipoConsulta.FECHA_HASTA:
+            fecha_hasta = _parse_fecha(filtro.valor, "FECHA_HASTA")
+    if fecha_desde is not None and fecha_hasta is not None and fecha_desde > fecha_hasta:
+        raise FiltroInvalidoError(
+            f"FECHA_DESDE ({fecha_desde.date()}) no puede ser posterior a FECHA_HASTA ({fecha_hasta.date()})"
+        )

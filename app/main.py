@@ -3,7 +3,11 @@ import time
 from contextlib import asynccontextmanager
 from typing import Dict
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app import data_loader, data_store, endpoints, errors
 from app.logging_config import logger
@@ -38,12 +42,59 @@ async def lifespan(app: FastAPI):
     yield
 
 
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+
 app = FastAPI(title="api_paralela", lifespan=lifespan)
+app.state.limiter = limiter
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-API-Key"],
+)
+
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next):
+    inicio = time.perf_counter()
+    response = await call_next(request)
+    duracion_ms = (time.perf_counter() - inicio) * 1000
+    logger.info(
+        "{} {} {} | {} | {:.1f}ms | {}",
+        request.method,
+        request.url.path,
+        f"?{request.url.query}" if request.url.query else "",
+        response.status_code,
+        duracion_ms,
+        request.headers.get("user-agent", "-"),
+    )
+    return response
+
+
 app.include_router(endpoints.router)
 errors.register_exception_handlers(app)
 
 
-# Chequeo de salud simple (no depende de que el CSV ya esté cargado).
+@app.exception_handler(RateLimitExceeded)
+async def _handle_rate_limit(request: Request, exc: RateLimitExceeded):
+    from app.errors import _cuerpo_error, _timestamp
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": f"Demasiadas solicitudes. Límite: {exc.detail}",
+            "instance": request.url.path,
+            "status": 429,
+            "title": "Too Many Requests",
+            "type": "https://developer.mozilla.org/es/docs/Web/HTTP/Reference/Status/429",
+            "timestamp": _timestamp(),
+            "errorCode": "DL",
+            "errorLabel": "Demasiadas Solicitudes",
+            "method": request.method,
+        },
+    )
+
+
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}

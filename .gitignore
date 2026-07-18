@@ -10,5 +10,6 @@ venv/
 data/
 logs/
 CLAUDE.md
-tests/
 logs/
+
+pendientes.md

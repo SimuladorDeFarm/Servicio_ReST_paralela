@@ -29,15 +29,30 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Ejecutar (siempre desde la raíz del proyecto, no desde dentro de `app/`):
+### Descargar el CSV de ventas
+
+```bash
+python -m scripts.descargar_csv
+```
+
+### Ejecutar (siempre desde la raíz del proyecto)
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
+### Ejecutar con HTTPS
+
+```bash
+# Generar certificados autofirmados (una sola vez):
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes
+
+# Arrancar con HTTPS:
+uvicorn app.main:app --ssl-keyfile key.pem --ssl-certfile cert.pem
+```
+
 La consola muestra el progreso de la carga (workers usados, tiempo, filas
-cargadas). Una vez que dice "carga completa", la API está lista en
-`http://127.0.0.1:8000`.
+cargadas). Una vez que dice "carga completa", la API está lista.
 
 ### Configuración opcional (variables de entorno)
 
@@ -46,8 +61,21 @@ cargadas). Una vez que dice "carga completa", la API está lista en
 | `VENTAS_CSV_PATH` | `data/ventas_completas.csv` | Cambiar el CSV a cargar |
 | `VENTAS_N_WORKERS` | Nº de CPUs del equipo | Cuántos procesos usar en la carga paralela |
 | `VENTAS_CHUNKS_PER_WORKER` | `2` | Cuántos trozos de archivo procesa cada worker |
+| `API_KEY` | (vacía = sin auth) | Si se define, toda petición debe incluir el header `X-API-Key` |
+| `CORS_ORIGINS` | `*` | Orígenes permitidos para CORS, separados por coma |
 
-## 3. El endpoint
+## 3. Autenticación
+
+Si se configura la variable `API_KEY`, toda petición al endpoint debe incluir
+el header `X-API-Key`:
+
+```bash
+curl -H "X-API-Key: mi-clave" "https://127.0.0.1:8000/v1/estadisticas/ventas?CANAL=POS"
+```
+
+Si `API_KEY` no está definida, la API funciona sin autenticación.
+
+## 4. El endpoint
 
 ```
 GET  /v1/estadisticas/ventas
@@ -59,22 +87,20 @@ Ambos métodos aceptan los mismos filtros y devuelven la misma respuesta.
 recibe como una lista `consultas` en el body JSON. Se puede combinar
 cualquier cantidad de filtros (se aplican todos a la vez, tipo "Y").
 
+**Nota:** el POST requiere al menos un filtro en la lista `consultas`.
+
 ### Filtros soportados
 
 | Filtro | Nombre en GET | Tipo / valores válidos |
 |---|---|---|
-| Género | `genero` | `No especificado`, `Masculino`, `Femenino`, `Otro` |
-| Edad | `edad` | número entero |
-| Canal de venta | `canal` | `POS`, `WEB`, `APP`, `CCT`, `APR`, `WPR` |
-| Código de producto | `codigo_producto` | número entero (SKU) |
-| ID del cliente | `id_persona` | UUID |
-| Local | `local` | número entero |
-| Fecha desde | `fecha_desde` | fecha `AAAA-MM-DD` (o ISO-8601 completo) |
-| Fecha hasta | `fecha_hasta` | fecha `AAAA-MM-DD` (o ISO-8601 completo) |
-
-Si no se envía ningún filtro (GET sin parámetros, o POST con `consultas`
-vacía o body vacío `{}`), la respuesta son las estadísticas sobre **todas**
-las ventas, sin restringir.
+| Género | `GENERO` | `No especificado`, `Masculino`, `Femenino`, `Otro` |
+| Edad | `EDAD` | número entero |
+| Canal de venta | `CANAL` | `POS`, `WEB`, `APP`, `CCT`, `APR`, `WPR` |
+| Código de producto | `CODIGO_PRODUCTO` | número entero (SKU) |
+| ID del cliente | `ID_PERSONA` | UUID válido |
+| Local | `LOCAL` | número entero |
+| Fecha desde | `FECHA_DESDE` | fecha `AAAA-MM-DD` (o ISO-8601 completo) |
+| Fecha hasta | `FECHA_HASTA` | fecha `AAAA-MM-DD` (incluye todo el día) |
 
 ### Documentación interactiva (Swagger)
 
@@ -82,18 +108,12 @@ Con la app corriendo, abrir `http://127.0.0.1:8000/docs` en el navegador:
 permite probar ambos métodos desde el navegador, ver los modelos de datos y
 descargar la especificación OpenAPI.
 
-## 4. Ejemplos
-
-### GET sin filtros (total de ventas)
-
-```bash
-curl http://127.0.0.1:8000/v1/estadisticas/ventas
-```
+## 5. Ejemplos
 
 ### GET con filtros combinados
 
 ```bash
-curl "http://127.0.0.1:8000/v1/estadisticas/ventas?genero=Femenino&canal=POS"
+curl "http://127.0.0.1:8000/v1/estadisticas/ventas?GENERO=Femenino&CANAL=POS"
 ```
 
 ```json
@@ -121,18 +141,6 @@ curl -X POST http://127.0.0.1:8000/v1/estadisticas/ventas \
       }'
 ```
 
-```json
-{
-  "suma": 11002764448.0,
-  "conteo": 1033169,
-  "promedio": 10649.530181412722,
-  "minimo": 16.0,
-  "maximo": 226476.0,
-  "mediana": 7872.0,
-  "desviacion_estandar": 14317.090578047004
-}
-```
-
 ### Significado de cada campo de la respuesta
 
 | Campo | Significado |
@@ -144,10 +152,9 @@ curl -X POST http://127.0.0.1:8000/v1/estadisticas/ventas \
 | `mediana` | Valor central (si el conteo es par, promedio de los 2 centrales) |
 | `desviacion_estandar` | Qué tan dispersos están los montos respecto al promedio |
 
-## 5. Errores
+## 6. Errores
 
-Todo error (filtro inválido, o filtro válido que no encuentra ninguna
-venta) responde con el mismo formato JSON:
+Todo error responde con un formato JSON consistente de 9 campos:
 
 ```json
 {
@@ -165,10 +172,21 @@ venta) responde con el mismo formato JSON:
 
 | Código | Cuándo ocurre | `errorCode` |
 |---|---|---|
-| **400** | Un filtro trae una clave no reconocida o un valor que no calza con el tipo esperado (ej. `canal=FAX`, `edad=abc`) | `VF` (Validación Fallida) |
-| **500** | Los filtros son válidos pero no hay ninguna venta que coincida — las métricas (promedio, mediana, etc.) quedan indefinidas | `IE` (Error Interno) |
+| **400** | Filtro con clave no reconocida, valor no convertible, lista vacía, rango de fechas invertido, ID_PERSONA no UUID | `VF` (Validación Fallida) |
+| **401** | API Key inválida o no proporcionada (si `API_KEY` está configurada) | `NA` (No Autorizado) |
+| **404** | Ruta que no existe | `NE` (No Encontrado) |
+| **405** | Método HTTP no soportado (ej. PUT, DELETE) | `MN` (Método No Permitido) |
+| **429** | Demasiadas solicitudes (rate limit excedido) | `DL` (Demasiadas Solicitudes) |
+| **500** | Filtros válidos pero sin filas coincidentes — métricas indefinidas | `IE` (Error Interno) |
 
-**Ejemplos que gatillan cada error:**
-- `GET /v1/estadisticas/ventas?canal=FAX` → 400 (canal no es uno de los soportados).
-- `POST` con `{"consulta": "NO_EXISTE", "valor": "x"}` → 400 (clave de filtro no reconocida).
-- `GET /v1/estadisticas/ventas?local=999999999` → 500 (ese local no existe, no hay ventas para calcular).
+## 7. Rate limiting
+
+La API limita a 60 peticiones por minuto por IP. Si se excede, responde 429.
+
+## 8. Seguridad
+
+- **HTTPS**: soportado configurando certificados SSL en uvicorn.
+- **API Key**: autenticación opcional por header `X-API-Key`.
+- **CORS**: configuración restrictiva (solo GET y POST, headers controlados).
+- **Minimización de datos**: las columnas con datos personales (RUT, nombres, apellidos, fecha de nacimiento) se eliminan del DataFrame en memoria tras la carga.
+- **Rate limiting**: 60 req/min por IP para prevenir abuso.

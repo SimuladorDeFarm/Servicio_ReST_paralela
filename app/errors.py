@@ -7,6 +7,7 @@ from typing import List
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import filters, stats
 from app.logging_config import logger
@@ -15,6 +16,9 @@ _MDN_STATUS_URL = "https://developer.mozilla.org/es/docs/Web/HTTP/Reference/Stat
 
 _TITULOS = {
     status.HTTP_400_BAD_REQUEST: "Bad Request",
+    status.HTTP_401_UNAUTHORIZED: "Unauthorized",
+    status.HTTP_404_NOT_FOUND: "Not Found",
+    status.HTTP_405_METHOD_NOT_ALLOWED: "Method Not Allowed",
     status.HTTP_500_INTERNAL_SERVER_ERROR: "Internal Server Error",
 }
 
@@ -103,6 +107,34 @@ def register_exception_handlers(app: FastAPI) -> None:
                 error_code="IE",
                 error_label="Error Interno",
             ),
+        )
+
+    # 404/405: rutas inexistentes o métodos no soportados con formato consistente.
+    _HTTP_ERROR_MAP = {
+        401: ("NA", "No Autorizado"),
+        404: ("NE", "No Encontrado"),
+        405: ("MN", "Método No Permitido"),
+    }
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _handle_http_exception(request: Request, exc: StarletteHTTPException):
+        code = exc.status_code
+        error_code, error_label = _HTTP_ERROR_MAP.get(code, ("IE", "Error Interno"))
+        title = _TITULOS.get(code, "Error")
+        logger.warning("{} ({}) en {} {}", code, error_code, request.method, request.url.path)
+        return JSONResponse(
+            status_code=code,
+            content={
+                "detail": exc.detail or title,
+                "instance": request.url.path,
+                "status": code,
+                "title": title,
+                "type": _MDN_STATUS_URL.format(code),
+                "timestamp": _timestamp(),
+                "errorCode": error_code,
+                "errorLabel": error_label,
+                "method": request.method,
+            },
         )
 
     # 500: red de seguridad para cualquier excepción no prevista.

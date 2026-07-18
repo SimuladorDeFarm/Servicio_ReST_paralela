@@ -8,6 +8,8 @@ numpy==1.24.4
 pandas==1.5.3
 # Logging (rotación/retención de archivos manejada por la librería)
 loguru==0.7.2
+# Rate limiting (protección contra abuso)
+slowapi==0.1.9
 # Pruebas
 pytest==7.4.4
 pytest-cov==4.1.0

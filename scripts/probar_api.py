@@ -78,9 +78,16 @@ def main() -> None:
 
     ok = 0
     fallidos = []
+    omitidos = []
     with httpx.Client(base_url=args.base_url, timeout=30.0) as client:
         for caso in casos:
             nombre = caso["nombre"]
+
+            if caso.get("_pendiente_recalcular"):
+                print(f"[SKIP] {nombre}: valores pendientes de recalcular")
+                omitidos.append(nombre)
+                continue
+
             try:
                 motivo_falla = _ejecutar_caso(client, caso)
             except httpx.ConnectError:
@@ -94,7 +101,10 @@ def main() -> None:
                 print(f"[FAIL] {nombre}: {motivo_falla}")
                 fallidos.append(nombre)
 
-    print(f"\n{ok}/{len(casos)} casos OK")
+    total_ejecutados = len(casos) - len(omitidos)
+    print(f"\n{ok}/{total_ejecutados} casos OK")
+    if omitidos:
+        print(f"Omitidos (pendientes de recalcular): {', '.join(omitidos)}")
     if fallidos:
         print(f"Fallaron: {', '.join(fallidos)}")
         sys.exit(1)

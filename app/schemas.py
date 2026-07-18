@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # Claves de filtro soportadas.
@@ -24,24 +24,29 @@ class ConsultaFiltro(BaseModel):
     valor: str = Field(..., description="Valor textual exacto del filtro")
 
     model_config = {
+        "extra": "forbid",
         "json_schema_extra": {
             "example": {"consulta": "GENERO", "valor": "Femenino"}
-        }
+        },
     }
 
 
 # Body del POST /v1/estadisticas/ventas.
 class EstadisticasVentasRequest(BaseModel):
-    # Filtros a combinar (AND); vacía = estadísticas sobre el total sin filtrar.
     consultas: List[ConsultaFiltro] = Field(
-        default_factory=list,
-        description=(
-            "Filtros a combinar (AND). Puede venir vacía: en ese caso se "
-            "calculan las estadísticas sobre el total de ventas sin filtrar."
-        ),
+        ...,
+        description="Filtros a combinar (AND). Debe contener al menos un filtro.",
     )
 
+    @field_validator("consultas")
+    @classmethod
+    def consultas_no_vacia(cls, v: List[ConsultaFiltro]) -> List[ConsultaFiltro]:
+        if not v:
+            raise ValueError("consultas no puede ser una lista vacía")
+        return v
+
     model_config = {
+        "extra": "forbid",
         "json_schema_extra": {
             "example": {
                 "consultas": [
@@ -50,20 +55,21 @@ class EstadisticasVentasRequest(BaseModel):
                     {"consulta": "CANAL", "valor": "POS"},
                 ]
             }
-        }
+        },
     }
 
 
 # Filtros predeterminados del GET (query params), todos opcionales.
+# Nombres en mayúsculas tal como los define la pauta.
 class EstadisticasVentasQueryParams(BaseModel):
-    genero: Optional[str] = Field(None, description="Femenino, Masculino, Otro, No especificado")
-    edad: Optional[int] = Field(None, description="Edad exacta del cliente")
-    canal: Optional[str] = Field(None, description="POS, WEB, APP, CCT, APR, WPR")
-    codigo_producto: Optional[str] = Field(None, description="Identificador único del producto (SKU)")
-    id_persona: Optional[str] = Field(None, description="UUID del cliente")
-    local: Optional[int] = Field(None, description="Número de local")
-    fecha_desde: Optional[str] = Field(None, description="Fecha ISO-8601, límite inferior")
-    fecha_hasta: Optional[str] = Field(None, description="Fecha ISO-8601, límite superior")
+    GENERO: Optional[str] = Field(None, description="Femenino, Masculino, Otro, No especificado")
+    EDAD: Optional[int] = Field(None, description="Edad exacta del cliente")
+    CANAL: Optional[str] = Field(None, description="POS, WEB, APP, CCT, APR, WPR")
+    CODIGO_PRODUCTO: Optional[str] = Field(None, description="Identificador único del producto (SKU)")
+    ID_PERSONA: Optional[str] = Field(None, description="UUID del cliente")
+    LOCAL: Optional[int] = Field(None, description="Número de local")
+    FECHA_DESDE: Optional[str] = Field(None, description="Fecha ISO-8601, límite inferior")
+    FECHA_HASTA: Optional[str] = Field(None, description="Fecha ISO-8601, límite superior")
 
 
 # Respuesta exitosa (GET y POST): las 7 métricas calculadas sobre MONTO_APLICADO.

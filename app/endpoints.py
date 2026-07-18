@@ -6,29 +6,30 @@ from typing import List
 from fastapi import APIRouter, Depends
 
 from app import data_store, filters, stats
+from app.auth import verificar_api_key
 from app.logging_config import logger
 from app.schemas import (
     ConsultaFiltro,
+    ErrorResponse,
     EstadisticasVentasQueryParams,
     EstadisticasVentasRequest,
     EstadisticasVentasResponse,
 )
 
-router = APIRouter()
+_RESPONSES_ERROR = {
+    400: {"model": ErrorResponse, "description": "Filtro inválido (VF)"},
+    500: {"model": ErrorResponse, "description": "Error interno (IE)"},
+}
+
+router = APIRouter(dependencies=[Depends(verificar_api_key)])
 
 COLUMNA_METRICA = "MONTO_APLICADO"
 
-# Mapeo de campo de query param -> clave de filtro (mismos nombres que TipoConsulta).
-_CAMPO_A_CLAVE_FILTRO = {
-    "genero": "GENERO",
-    "edad": "EDAD",
-    "canal": "CANAL",
-    "codigo_producto": "CODIGO_PRODUCTO",
-    "id_persona": "ID_PERSONA",
-    "local": "LOCAL",
-    "fecha_desde": "FECHA_DESDE",
-    "fecha_hasta": "FECHA_HASTA",
-}
+# Campos de query param que corresponden a claves de filtro.
+_CAMPOS_FILTRO = [
+    "GENERO", "EDAD", "CANAL", "CODIGO_PRODUCTO",
+    "ID_PERSONA", "LOCAL", "FECHA_DESDE", "FECHA_HASTA",
+]
 
 
 # Convierte los query params opcionales del GET a la misma lista de ConsultaFiltro que usa el POST.
@@ -36,10 +37,10 @@ def _query_params_a_consultas(
     params: EstadisticasVentasQueryParams,
 ) -> List[ConsultaFiltro]:
     consultas = []
-    for campo, clave in _CAMPO_A_CLAVE_FILTRO.items():
+    for campo in _CAMPOS_FILTRO:
         valor = getattr(params, campo)
         if valor is not None:
-            consultas.append(ConsultaFiltro(consulta=clave, valor=str(valor)))
+            consultas.append(ConsultaFiltro(consulta=campo, valor=str(valor)))
     return consultas
 
 
@@ -57,7 +58,7 @@ def _resolver_estadisticas(consultas: List[ConsultaFiltro]) -> EstadisticasVenta
 
 
 # GET: estadísticas de ventas con filtros predeterminados (query params).
-@router.get("/v1/estadisticas/ventas", response_model=EstadisticasVentasResponse)
+@router.get("/v1/estadisticas/ventas", response_model=EstadisticasVentasResponse, responses=_RESPONSES_ERROR)
 def obtener_estadisticas_ventas(
     params: EstadisticasVentasQueryParams = Depends(),
 ) -> EstadisticasVentasResponse:
@@ -66,7 +67,7 @@ def obtener_estadisticas_ventas(
 
 
 # POST: estadísticas de ventas con filtros personalizados (body JSON).
-@router.post("/v1/estadisticas/ventas", response_model=EstadisticasVentasResponse)
+@router.post("/v1/estadisticas/ventas", response_model=EstadisticasVentasResponse, responses=_RESPONSES_ERROR)
 def calcular_estadisticas_ventas(
     body: EstadisticasVentasRequest,
 ) -> EstadisticasVentasResponse:
