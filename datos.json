@@ -1,6 +1,5 @@
 {
   "_descripcion": "Casos de prueba para GET/POST /v1/estadisticas/ventas, con la respuesta exacta esperada al correr contra el CSV real (data/ventas_completas.csv, 3.242.878 filas). Consumido por scripts/probar_api.py para validar automáticamente una instancia en ejecución de la API (uvicorn app.main:app).",
-  "_nota_fecha_hasta": "FECHA_HASTA ahora incluye el día completo (23:59:59.999999). El caso rango_fechas_mayo_2024 tiene valores PENDIENTES DE RECALCULAR contra el CSV real.",
   "casos": [
     {
       "nombre": "sin_filtros",
@@ -22,7 +21,9 @@
       "nombre": "genero_femenino",
       "descripcion": "GET filtrando por GENERO=Femenino.",
       "metodo": "GET",
-      "query_params": { "GENERO": "Femenino" },
+      "query_params": {
+        "GENERO": "Femenino"
+      },
       "status_esperado": 200,
       "respuesta_esperada": {
         "suma": 21715774303.0,
@@ -38,7 +39,10 @@
       "nombre": "canal_pos_genero_masculino",
       "descripcion": "GET combinando dos filtros: CANAL=POS y GENERO=Masculino.",
       "metodo": "GET",
-      "query_params": { "CANAL": "POS", "GENERO": "Masculino" },
+      "query_params": {
+        "CANAL": "POS",
+        "GENERO": "Masculino"
+      },
       "status_esperado": 200,
       "respuesta_esperada": {
         "suma": 11002764448.0,
@@ -54,7 +58,9 @@
       "nombre": "local_371",
       "descripcion": "GET filtrando por LOCAL=371.",
       "metodo": "GET",
-      "query_params": { "LOCAL": 371 },
+      "query_params": {
+        "LOCAL": 371
+      },
       "status_esperado": 200,
       "respuesta_esperada": {
         "suma": 42882558.0,
@@ -70,7 +76,9 @@
       "nombre": "edad_34",
       "descripcion": "GET filtrando por EDAD=34.",
       "metodo": "GET",
-      "query_params": { "EDAD": 34 },
+      "query_params": {
+        "EDAD": 34
+      },
       "status_esperado": 200,
       "respuesta_esperada": {
         "suma": 644093391.0,
@@ -84,26 +92,30 @@
     },
     {
       "nombre": "rango_fechas_mayo_2024",
-      "descripcion": "GET filtrando por rango de fechas (mayo de 2024). NOTA: valores PENDIENTES DE RECALCULAR tras corrección de FECHA_HASTA (ahora incluye día completo).",
+      "descripcion": "GET filtrando por rango de fechas (mayo de 2024). FECHA_HASTA incluye día completo.",
       "metodo": "GET",
-      "query_params": { "FECHA_DESDE": "2024-05-01", "FECHA_HASTA": "2024-05-31" },
+      "query_params": {
+        "FECHA_DESDE": "2024-05-01",
+        "FECHA_HASTA": "2024-05-31"
+      },
       "status_esperado": 200,
-      "_pendiente_recalcular": true,
       "respuesta_esperada": {
-        "suma": 1786662579.0,
-        "conteo": 282588,
-        "promedio": 6322.499819525246,
+        "suma": 1841523386.0,
+        "conteo": 291483,
+        "promedio": 6317.772858108363,
         "minimo": 19.0,
         "maximo": 126190.0,
         "mediana": 4797.0,
-        "desviacion_estandar": 5815.656866899222
+        "desviacion_estandar": 5852.815618986741
       }
     },
     {
       "nombre": "codigo_producto_79",
       "descripcion": "GET filtrando por CODIGO_PRODUCTO (SKU) = 79.",
       "metodo": "GET",
-      "query_params": { "CODIGO_PRODUCTO": 79 },
+      "query_params": {
+        "CODIGO_PRODUCTO": 79
+      },
       "status_esperado": 200,
       "respuesta_esperada": {
         "suma": 695745351.0,
@@ -119,7 +131,9 @@
       "nombre": "id_persona_ejemplo",
       "descripcion": "GET filtrando por ID_PERSONA (UUID de un cliente real con varias compras).",
       "metodo": "GET",
-      "query_params": { "ID_PERSONA": "f62c242f-e34d-3be2-902d-d58c79e7a97f" },
+      "query_params": {
+        "ID_PERSONA": "f62c242f-e34d-3be2-902d-d58c79e7a97f"
+      },
       "status_esperado": 200,
       "respuesta_esperada": {
         "suma": 1215081.0,
@@ -137,8 +151,14 @@
       "metodo": "POST",
       "body": {
         "consultas": [
-          { "consulta": "CANAL", "valor": "POS" },
-          { "consulta": "GENERO", "valor": "Masculino" }
+          {
+            "consulta": "CANAL",
+            "valor": "POS"
+          },
+          {
+            "consulta": "GENERO",
+            "valor": "Masculino"
+          }
         ]
       },
       "status_esperado": 200,
@@ -156,7 +176,9 @@
       "nombre": "post_consultas_vacias_da_400",
       "descripcion": "POST con 'consultas' vacía: ahora es error 400 (debe tener al menos un filtro).",
       "metodo": "POST",
-      "body": { "consultas": [] },
+      "body": {
+        "consultas": []
+      },
       "status_esperado": 400,
       "error_code_esperado": "VF"
     },
@@ -164,7 +186,9 @@
       "nombre": "error_valor_invalido",
       "descripcion": "GET con CANAL fuera de los valores permitidos -> 400, errorCode VF.",
       "metodo": "GET",
-      "query_params": { "CANAL": "FAX" },
+      "query_params": {
+        "CANAL": "FAX"
+      },
       "status_esperado": 400,
       "error_code_esperado": "VF"
     },
@@ -172,7 +196,14 @@
       "nombre": "error_clave_no_reconocida",
       "descripcion": "POST con una clave de filtro que no existe -> 400, errorCode VF.",
       "metodo": "POST",
-      "body": { "consultas": [{ "consulta": "NO_EXISTE", "valor": "x" }] },
+      "body": {
+        "consultas": [
+          {
+            "consulta": "NO_EXISTE",
+            "valor": "x"
+          }
+        ]
+      },
       "status_esperado": 400,
       "error_code_esperado": "VF"
     },
@@ -180,7 +211,9 @@
       "nombre": "error_sin_coincidencias",
       "descripcion": "GET con un LOCAL que no existe en los datos -> 500, errorCode IE (no hay filas para calcular las métricas).",
       "metodo": "GET",
-      "query_params": { "LOCAL": 999999999 },
+      "query_params": {
+        "LOCAL": 999999999
+      },
       "status_esperado": 500,
       "error_code_esperado": "IE"
     },
@@ -188,7 +221,9 @@
       "nombre": "error_uuid_invalido",
       "descripcion": "GET con ID_PERSONA que no es UUID válido -> 400, errorCode VF.",
       "metodo": "GET",
-      "query_params": { "ID_PERSONA": "no-es-uuid" },
+      "query_params": {
+        "ID_PERSONA": "no-es-uuid"
+      },
       "status_esperado": 400,
       "error_code_esperado": "VF"
     },
@@ -196,7 +231,10 @@
       "nombre": "error_rango_fechas_invertido",
       "descripcion": "GET con FECHA_DESDE posterior a FECHA_HASTA -> 400, errorCode VF.",
       "metodo": "GET",
-      "query_params": { "FECHA_DESDE": "2025-12-31", "FECHA_HASTA": "2024-01-01" },
+      "query_params": {
+        "FECHA_DESDE": "2025-12-31",
+        "FECHA_HASTA": "2024-01-01"
+      },
       "status_esperado": 400,
       "error_code_esperado": "VF"
     }
