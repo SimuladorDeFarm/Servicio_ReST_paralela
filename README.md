@@ -8,6 +8,22 @@ Servicio REST de estadísticas de ventas (Cruz Morada) con carga paralela de CSV
 
 ## Instalación
 
+La carpeta `data/` (donde va el CSV de ventas) vive en la **raíz del
+proyecto**, al mismo nivel que `app/` y `tests/`:
+
+```
+api_paralela/
+├── app/
+├── data/                       <- el CSV de ventas va acá
+│   └── ventas_completas.csv
+├── tests/
+├── .env.example
+└── requirements.txt
+```
+
+Los pasos de abajo la crean automáticamente (Opción 1) o piden crearla a
+mano (Opción 2) — ver [Descargar el CSV de ventas](#descargar-el-csv-de-ventas).
+
 ```bash
 git clone https://github.com/SimuladorDeFarm/Servicio_ReST_paralela
 cd Servicio_ReST_paralela
@@ -87,7 +103,7 @@ ambos casos, vía `os.getenv`):
    correr uvicorn. Si una variable está definida tanto en `.env` como en la
    shell, **gana la de la shell**.
 
-## Autenticación
+## Autenticación (OPCIONAL)
 
 `API_KEY` es un mecanismo de autenticación **propio y opcional** del
 servicio: no se obtiene de ningún proveedor externo, la define quien
